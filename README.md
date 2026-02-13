@@ -1,6 +1,6 @@
 # Batch OKLCH Converter
 
-A TypeScript utility that converts hex color values to OKLCH color space with CSS `@supports` fallback blocks.
+A TypeScript utility that converts hex color values to OKLCH color space with `@supports` fallback blocks. Supports both CSS and TypeScript/JavaScript object syntax.
 
 ## What It Does
 
@@ -8,6 +8,7 @@ A TypeScript utility that converts hex color values to OKLCH color space with CS
 - **Generates `@supports` blocks** containing OKLCH equivalents for modern browsers
 - **Groups properties** — all hex properties in a rule get one `@supports` block
 - **Idempotent** — safe to run multiple times (skips existing `@supports` blocks)
+- **Dual format support** — CSS files and TypeScript/JavaScript object literals
 - **Handles edge cases** — nested rules, @media queries, non-color hex values
 
 ## Output Format
@@ -43,19 +44,25 @@ bun install
 ## Usage
 
 ```bash
-# Single file
+# CSS file
 bun convert.ts styles.css
 
-# Multiple files
-bun convert.ts styles.css tokens.css
+# TypeScript/JavaScript file
+bun convert.ts theme.ts
+
+# Multiple files (any mix of formats)
+bun convert.ts styles.css theme.ts tokens.tsx
 
 # With glob (zsh expands before bun)
 bun convert.ts styles/**/*.css
+bun convert.ts src/**/*.{ts,tsx}
 ```
 
 ## Features
 
-### Nested Rules in @media
+### CSS File Format
+
+#### Nested Rules in @media
 `@supports` blocks are correctly nested inside `@media` queries:
 
 ```css
@@ -71,7 +78,7 @@ bun convert.ts styles/**/*.css
 }
 ```
 
-### Skips Existing @supports Blocks
+#### Skips Existing @supports Blocks
 If a rule is already inside an `@supports` block, it won't be processed again:
 
 ```css
@@ -83,13 +90,13 @@ If a rule is already inside an `@supports` block, it won't be processed again:
 /* ↑ This stays as-is */
 ```
 
-### Smart Hex Detection
+#### Smart Hex Detection
 Only matches pure hex colors — won't touch:
 - `url(#icon)` — SVG references
 - `content: "#tag"` — string values
 - Other non-color hex patterns
 
-### Idempotent
+#### Idempotent
 Run it as many times as you want — output stabilizes after the first run:
 
 ```bash
@@ -97,6 +104,46 @@ bun convert.ts file.css
 bun convert.ts file.css  # File unchanged ✓
 bun convert.ts file.css  # File unchanged ✓
 ```
+
+### TypeScript/JavaScript File Format
+
+For `.ts`, `.tsx`, `.js`, `.jsx` files with object literals:
+
+**Before:**
+```typescript
+const styleOverrides = {
+  ':root': {
+    '--color-red-50': '#FEF2F2',
+    '--color-blue-500': '#3B82F6',
+  },
+};
+```
+
+**After:**
+```typescript
+const styleOverrides = {
+  ':root': {
+    '--color-red-50': '#FEF2F2',
+    '--color-blue-500': '#3B82F6',
+
+    /**
+     * OKLCH (https://oklch.com/) Color Primitives
+     * Used for browsers that support the oklch() function.
+     */
+    '@supports (color: oklch(0 0 0))': {
+      '--color-blue-500': 'oklch(0.623 0.188 259.81)',
+      '--color-red-50': 'oklch(0.971 0.013 17.38)',
+    },
+  },
+};
+```
+
+#### Key Features
+- **Finds all hex color string values** in object literals
+- **Alphabetically sorted** OKLCH properties for consistency
+- **Preserves indentation** matching the original file
+- **Automatic comment block** explaining the OKLCH colors
+- **Idempotent** — skips files that already have `@supports` property
 
 ## Technical Details
 

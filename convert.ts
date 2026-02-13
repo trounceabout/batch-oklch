@@ -6,8 +6,13 @@ const filePaths = process.argv.slice(2);
 
 // Display usage if no files provided
 if (filePaths.length === 0) {
-  console.log("Usage: bun convert.ts <file.css> [file2.css ...]");
+  console.log("Usage: bun convert.ts <file> [file2 ...]");
   console.log("Converts hex colors to oklch() with @supports fallback");
+  console.log("");
+  console.log("Supported formats:");
+  console.log("  - CSS files (.css)");
+  console.log("  - TypeScript/JavaScript (.ts, .tsx, .js, .jsx)");
+  console.log("    Looks for objects with hex color string values");
   process.exit(1);
 }
 
@@ -77,13 +82,13 @@ function isInsideSupports(node: postcss.Node): boolean {
 }
 
 /**
- * Process a single CSS file
+ * Process a CSS file
  * - Finds all rules with hex color declarations
  * - Groups them into @supports blocks
  * - Preserves original hex values as fallback
  * - Also handles root-level declarations (CSS variables)
  */
-function processFile(filePath: string): void {
+function processCssFile(filePath: string): void {
   try {
     const css = readFileSync(filePath, "utf-8");
     const root = postcss.parse(css);
@@ -185,6 +190,123 @@ function processFile(filePath: string): void {
     console.log(`✓ Converted ${filePath}`);
   } catch (error) {
     console.error(`✗ Error processing ${filePath}: ${error}`);
+  }
+}
+
+/**
+ * Process a TypeScript/JavaScript file with object literals
+ * Finds hex color strings and converts them to OKLCH
+ * Adds '@supports (color: oklch(0 0 0))' property with converted colors
+ */
+function processTypeScriptFile(filePath: string): void {
+  try {
+    let content = readFileSync(filePath, "utf-8");
+
+    // Find all hex color values in the file and their property names
+    const hexColorPattern = /'([^']*)':\s*'(#[0-9a-fA-F]{3,8})'/g;
+    const colorMap = new Map<string, { prop: string; hex: string; oklch: string }>();
+
+    let match;
+    while ((match = hexColorPattern.exec(content)) !== null) {
+      const propName = match[1];
+      const hexValue = match[2];
+
+      // Only process actual color properties (skip if already in @supports)
+      if (isHexColor(hexValue)) {
+        const oklchValue = hexToOklch(hexValue);
+        if (oklchValue) {
+          colorMap.set(propName, { prop: propName, hex: hexValue, oklch: oklchValue });
+        }
+      }
+    }
+
+    if (colorMap.size === 0) {
+      console.log(`ℹ No hex colors found in ${filePath}`);
+      return;
+    }
+
+    // Check if @supports block already exists
+    const supportsExists = content.includes("'@supports (color: oklch(0 0 0))':");
+    if (supportsExists) {
+      console.log(`ℹ @supports block already exists in ${filePath}, skipping`);
+      return;
+    }
+
+    // Find the position to insert @supports block
+    // Strategy: Find the last hex color property and insert after its line
+    const lastHexColorMatch = Array.from(colorMap.values()).pop();
+    if (!lastHexColorMatch) {
+      console.log(`ℹ No suitable insertion point found in ${filePath}`);
+      return;
+    }
+
+    // Build the @supports block content with proper indentation
+    const supportsLines: string[] = [""];
+    supportsLines.push("\t/**");
+    supportsLines.push("\t * OKLCH (https://oklch.com/) Color Primitives");
+    supportsLines.push("\t * Used for browsers that support the oklch() function.");
+    supportsLines.push("\t */");
+    supportsLines.push("\t'@supports (color: oklch(0 0 0))': {");
+
+    // Sort colors by property name for consistent output
+    const sortedColors = Array.from(colorMap.values()).sort((a, b) =>
+      a.prop.localeCompare(b.prop)
+    );
+
+    sortedColors.forEach((color) => {
+      supportsLines.push(`\t\t'${color.prop}': '${color.oklch}',`);
+    });
+
+    supportsLines.push("\t},");
+
+    // Find insertion point: locate the last hex value in the content
+    const lastMatch = content.lastIndexOf(lastHexColorMatch.hex);
+    if (lastMatch === -1) {
+      console.error(`Could not find insertion point in ${filePath}`);
+      return;
+    }
+
+    // Find the end of the line containing the last hex color
+    let insertIndex = content.indexOf("\n", lastMatch);
+    if (insertIndex === -1) {
+      insertIndex = content.length;
+    }
+
+    // Look ahead to skip the closing brace of the `:root` object if present
+    // We want to insert before the closing },
+    let checkContent = content.slice(insertIndex);
+    const closeRootMatch = checkContent.match(/\n\s*},?\s*$/m);
+    if (closeRootMatch) {
+      // Found a closing brace, insert before it
+      insertIndex = insertIndex + checkContent.indexOf(closeRootMatch[0]);
+    }
+
+    // Insert the @supports block
+    const newContent =
+      content.slice(0, insertIndex) + "\n" + supportsLines.join("\n") + content.slice(insertIndex);
+
+    writeFileSync(filePath, newContent);
+    console.log(`✓ Converted ${filePath} (found ${colorMap.size} hex colors)`);
+  } catch (error) {
+    console.error(`✗ Error processing ${filePath}: ${error}`);
+  }
+}
+
+/**
+ * Detect file type and process accordingly
+ */
+function processFile(filePath: string): void {
+  const isCss = filePath.endsWith(".css");
+  const isTypeScript = /\.(ts|tsx|js|jsx)$/.test(filePath);
+
+  if (isCss) {
+    processCssFile(filePath);
+  } else if (isTypeScript) {
+    processTypeScriptFile(filePath);
+  } else {
+    console.warn(
+      `⚠ Skipping ${filePath} - unknown file type. Use .css, .ts, .tsx, .js, or .jsx`
+    );
   }
 }
 

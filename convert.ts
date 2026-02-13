@@ -203,19 +203,23 @@ function processTypeScriptFile(filePath: string): void {
     let content = readFileSync(filePath, "utf-8");
 
     // Find all hex color values in the file and their property names
-    const hexColorPattern = /'([^']*)':\s*'(#[0-9a-fA-F]{3,8})'/g;
-    const colorMap = new Map<string, { prop: string; hex: string; oklch: string }>();
+    // Supports both single and double quotes: 'prop': '#hex' or "prop": "#hex"
+    const hexColorPattern = /["']([^"']*?)["']:\s*["'](#[0-9a-fA-F]{3,8})["']/g;
+    const colorMap = new Map<string, { prop: string; hex: string; oklch: string; quoteStyle: string }>();
 
     let match;
     while ((match = hexColorPattern.exec(content)) !== null) {
       const propName = match[1];
       const hexValue = match[2];
+      // Detect which quote style was used
+      const fullMatch = match[0];
+      const quoteStyle = fullMatch[0]; // First character is the quote
 
       // Only process actual color properties (skip if already in @supports)
       if (isHexColor(hexValue)) {
         const oklchValue = hexToOklch(hexValue);
         if (oklchValue) {
-          colorMap.set(propName, { prop: propName, hex: hexValue, oklch: oklchValue });
+          colorMap.set(propName, { prop: propName, hex: hexValue, oklch: oklchValue, quoteStyle });
         }
       }
     }
@@ -240,13 +244,17 @@ function processTypeScriptFile(filePath: string): void {
       return;
     }
 
+    // Detect quote style from the first color found
+    const firstColor = Array.from(colorMap.values())[0];
+    const quote = firstColor?.quoteStyle || '"';
+
     // Build the @supports block content with proper indentation
     const supportsLines: string[] = [""];
     supportsLines.push("\t/**");
     supportsLines.push("\t * OKLCH (https://oklch.com/) Color Primitives");
     supportsLines.push("\t * Used for browsers that support the oklch() function.");
     supportsLines.push("\t */");
-    supportsLines.push("\t'@supports (color: oklch(0 0 0))': {");
+    supportsLines.push(`\t${quote}@supports (color: oklch(0 0 0))${quote}: {`);
 
     // Sort colors by property name for consistent output
     const sortedColors = Array.from(colorMap.values()).sort((a, b) =>
@@ -254,7 +262,7 @@ function processTypeScriptFile(filePath: string): void {
     );
 
     sortedColors.forEach((color) => {
-      supportsLines.push(`\t\t'${color.prop}': '${color.oklch}',`);
+      supportsLines.push(`\t\t${quote}${color.prop}${quote}: ${quote}${color.oklch}${quote},`);
     });
 
     supportsLines.push("\t},");

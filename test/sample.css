@@ -1,0 +1,85 @@
+/* Basic rule with hex colors */
+.button {
+  color: #ff6347;
+  background: #abc;
+  border: 1px solid #000;
+}
+@supports (color: oklch(0 0 0)) {
+  .button {
+    color: oklch(0.6962193430973757 0.19552462409760693 32.32144085755985);
+    background: oklch(0.7844364691007079 0.03066881015064953 248.21819725463325);
+  }
+}
+@supports (color: oklch(0 0 0)) {
+  .button {
+    color: oklch(0.6962193430973757 0.19552462409760693 32.32144085755985);
+    background: oklch(0.7844364691007079 0.03066881015064953 248.21819725463325);
+  }
+}
+
+/* Rule inside @media */
+@media (max-width: 768px) {
+  .card {
+    background: #f0f0f0;
+    border-color: #e0e0e0;
+  }
+  @supports (color: oklch(0 0 0)) {
+    .card {
+      background: oklch(0.9551400440214244 0 0);
+      border-color: oklch(0.9067006857120019 0 0);
+    }
+  }
+  @supports (color: oklch(0 0 0)) {
+    .card {
+      background: oklch(0.9551400440214244 0 0);
+      border-color: oklch(0.9067006857120019 0 0);
+    }
+  }
+}
+
+/* Already inside @supports – should be skipped */
+@supports (color: oklch(0 0 0)) {
+  .modern {
+    color: oklch(62.7955% 0.2077 29.23);
+  }
+}
+
+/* Rule with no hex colors */
+.text {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* Rule with mixed hex and non-hex values */
+.badge {
+  background: #ffd700;
+  padding: 8px;
+  border-radius: 4px;
+}
+@supports (color: oklch(0 0 0)) {
+  .badge {
+    background: oklch(0.8867710734392974 0.18218604275663944 95.33049348702475);
+  }
+}
+@supports (color: oklch(0 0 0)) {
+  .badge {
+    background: oklch(0.8867710734392974 0.18218604275663944 95.33049348702475);
+  }
+}
+
+/* Rule with hex in url/content – should not match */
+.icon {
+  background-image: url(#icon-id);
+  content: "#tag";
+  color: #333;
+}
+@supports (color: oklch(0 0 0)) {
+  .icon {
+    color: oklch(0.3210925090680371 0 0);
+  }
+}
+@supports (color: oklch(0 0 0)) {
+  .icon {
+    color: oklch(0.3210925090680371 0 0);
+  }
+}

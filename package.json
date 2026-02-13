@@ -1,0 +1,15 @@
+{
+  "name": "batch-oklch",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "convert": "bun convert.ts"
+  },
+  "dependencies": {
+    "culori": "^3.3.0",
+    "postcss": "^8.4.38"
+  },
+  "devDependencies": {
+    "@types/culori": "^2.0.0"
+  }
+}
